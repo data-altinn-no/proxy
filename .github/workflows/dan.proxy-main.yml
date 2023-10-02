@@ -39,4 +39,4 @@ jobs:
           app-name: 'func-banking-proxy'
           slot-name: 'staging'
           package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_A13B9CECA42947A585A43B4741EFC5D4 }}
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
