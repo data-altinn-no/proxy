@@ -2,6 +2,7 @@ using Dan.Proxy.Interfaces;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
+using System.Net;
 
 namespace Dan.Proxy
 {
@@ -19,8 +20,14 @@ namespace Dan.Proxy
         [Function("DanProxy")]
         public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequestData req)
         {
-            _logger.LogInformation($"Proxy request to {req.Query}");
+            if (req.Query["url"] == null)
+            {
+                var response = req.CreateResponse(HttpStatusCode.BadRequest);
+                await response.WriteStringAsync("Invalid or missing url provided");
+                return response;
+            }
 
+            _logger.LogInformation($"Proxy request to {req.Query["url"]}");
             return await _proxyService.ProxyRequest(req);
         }
     }

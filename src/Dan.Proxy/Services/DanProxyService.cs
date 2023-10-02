@@ -25,7 +25,7 @@ namespace Dan.Proxy.Services
         public async Task<HttpResponseData> ProxyRequest(HttpRequestData incomingRequest)
         {
             var client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient);
-            var url = "https://" + HttpUtility.UrlDecode(incomingRequest.Query.ToString());
+            var url = "https://" + HttpUtility.UrlDecode(incomingRequest.Query["url"].ToString());
 
             if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
             {
