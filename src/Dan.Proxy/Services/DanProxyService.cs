@@ -34,6 +34,14 @@ namespace Dan.Proxy.Services
                 return response;
             }
 
+            if (_settings.DebugMode)
+            {
+                foreach (var header in incomingRequest.Headers)
+                {
+                    _logger.LogInformation($"Incoming::: header {header.Key} : value: {header.Value}");
+                }
+            }
+
             var outgoingRequest = new HttpRequestMessage(HttpMethod.Get, url);
 
             if (incomingRequest.Headers.TryGetValues("Accept", out var acceptHeaders))
@@ -52,6 +60,13 @@ namespace Dan.Proxy.Services
 
             try
             {
+                if (_settings.DebugMode)
+                {
+                    foreach (var header in outgoingRequest.Headers)
+                    {
+                        _logger.LogInformation($"Outgoing::: header {header.Key} : value: {header.Value}");
+                    }
+                }
                 var incomingResponse = await client.SendAsync(outgoingRequest);
                 var outgoingResponse = incomingRequest.CreateResponse(incomingResponse.StatusCode);
 
