@@ -11,5 +11,8 @@ namespace Dan.Proxy.Config
         public string validEndPoints { get; set; } = string.Empty;
 
         public bool DebugMode { get; set; } = false;
+
+        private string Ignored = string.Empty;
+        public string[] IgnoredHeaders => Ignored.Split(',', StringSplitOptions.RemoveEmptyEntries);
     }
 }

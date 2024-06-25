@@ -22,6 +22,21 @@ namespace Dan.Proxy.Services
             _settings = settings.Value;
         }
 
+        private bool IsEligibleHeader(string value)
+        {
+            if (value.StartsWith("x-", System.StringComparison.OrdinalIgnoreCase) || value.StartsWith("disguised", StringComparison.CurrentCultureIgnoreCase) || (value.StartsWith("was-")))
+            {
+                return false;
+            }
+
+            if (_settings.IgnoredHeaders.Length > 0 && _settings.IgnoredHeaders.Contains(value))
+            {
+                return false; 
+            }
+
+            return true;
+        }
+
         public async Task<HttpResponseData> ProxyRequest(HttpRequestData incomingRequest)
         {
             var client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient);
@@ -60,13 +75,17 @@ namespace Dan.Proxy.Services
 
             try
             {
-                if (_settings.DebugMode)
+
+                foreach (var header in incomingRequest.Headers.Where(x => IsEligibleHeader(x.Key)))
                 {
-                    foreach (var header in outgoingRequest.Headers)
+                    outgoingRequest.Headers.TryAddWithoutValidation(header.Key, header.Value);
+
+                    if (_settings.DebugMode)
                     {
                         _logger.LogInformation($"Outgoing::: header {header.Key} : value: {header.Value}");
                     }
                 }
+
                 var incomingResponse = await client.SendAsync(outgoingRequest);
                 var outgoingResponse = incomingRequest.CreateResponse(incomingResponse.StatusCode);
 
@@ -92,3 +111,8 @@ namespace Dan.Proxy.Services
         }
     }
 }
+
+
+
+
+
