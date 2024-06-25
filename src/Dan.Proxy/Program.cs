@@ -9,7 +9,8 @@ var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
     .ConfigureServices((context, services) =>
     {
-        services.Configure<DanProxySettings>(context.Configuration.GetSection("DanProxySettings"));
+        services.Configure<DanProxySettings>(context.Configuration);
+
         services.AddSingleton<IDanProxyService, DanProxyService>();
 
         services.AddHttpClient(Constants.DanProxyHttpClient);
