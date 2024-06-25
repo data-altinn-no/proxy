@@ -38,7 +38,7 @@ namespace Dan.Proxy.Services
             {
                 foreach (var header in incomingRequest.Headers)
                 {
-                    _logger.LogInformation($"Incoming::: header {header.Key} : value: {header.Value}");
+                    _logger.LogInformation($"Incoming::: header {header.Key} : value: {header.Value.FirstOrDefault()}");
                 }
             }
 
