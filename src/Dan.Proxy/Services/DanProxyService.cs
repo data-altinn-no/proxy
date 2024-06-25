@@ -24,8 +24,7 @@ namespace Dan.Proxy.Services
 
         private bool IsEligibleHeader(string value)
         {
-
-            return false;
+            return true;
         }
 
         public async Task<HttpResponseData> ProxyRequest(HttpRequestData incomingRequest)
