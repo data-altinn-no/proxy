@@ -24,6 +24,11 @@ namespace Dan.Proxy.Services
 
         private bool IsEligibleHeader(string value)
         {
+            if (_settings.IgnoredHeaders.Length > 0 && _settings.IgnoredHeaders.Contains(value))
+            {
+                return false;
+            }
+
             return true;
         }
 
