@@ -24,17 +24,8 @@ namespace Dan.Proxy.Services
 
         private bool IsEligibleHeader(string value)
         {
-            if (value.StartsWith("x-", System.StringComparison.OrdinalIgnoreCase) || value.StartsWith("disguised", StringComparison.CurrentCultureIgnoreCase) || (value.StartsWith("was-")) || value.Equals("client-ip"))
-            {
-                return false;
-            }
 
-            if (_settings.IgnoredHeaders.Length > 0 && _settings.IgnoredHeaders.Contains(value))
-            {
-                return false; 
-            }
-
-            return true;
+            return false;
         }
 
         public async Task<HttpResponseData> ProxyRequest(HttpRequestData incomingRequest)
@@ -53,7 +44,7 @@ namespace Dan.Proxy.Services
             {
                 foreach (var header in incomingRequest.Headers)
                 {
-                    _logger.LogInformation($"Incoming::: header {header.Key} : value: {header.Value.Single()}");
+                    _logger.LogInformation($"Incoming::: header {header.Key} : value: {string.Join(",", header.Value.ToArray())}");
                 }
             }
 
@@ -68,7 +59,7 @@ namespace Dan.Proxy.Services
 
                     if (_settings.DebugMode)
                     {
-                        _logger.LogInformation($"Outgoing::: header {header.Key} : value: {header.Value.Single()}");
+                        _logger.LogInformation($"Outgoing::: header {header.Key} : {string.Join(",", header.Value.ToArray())}");
                     }
                 }
 
@@ -82,6 +73,9 @@ namespace Dan.Proxy.Services
                 }
 
                 var incomingResponse = await client.SendAsync(outgoingRequest);
+
+                _logger.LogInformation($"Response from {url} is {incomingResponse.StatusCode}");
+
                 var outgoingResponse = incomingRequest.CreateResponse(incomingResponse.StatusCode);
 
                 if (incomingResponse.Headers.TryGetValues("Content-Type", out var contentTypes))

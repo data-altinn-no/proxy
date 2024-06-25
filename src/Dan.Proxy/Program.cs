@@ -11,7 +11,7 @@ var host = new HostBuilder()
     {
         services.Configure<DanProxySettings>(context.Configuration);
 
-        services.AddSingleton<IDanProxyService, DanProxyService>();
+        services.AddTransient<IDanProxyService, DanProxyService>();
 
         services.AddHttpClient(Constants.DanProxyHttpClient);
     })
