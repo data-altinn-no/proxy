@@ -24,7 +24,7 @@ namespace Dan.Proxy.Services
 
         private bool IsEligibleHeader(string value)
         {
-            if (value.StartsWith("x-", System.StringComparison.OrdinalIgnoreCase) || value.StartsWith("disguised", StringComparison.CurrentCultureIgnoreCase) || (value.StartsWith("was-")))
+            if (value.StartsWith("x-", System.StringComparison.OrdinalIgnoreCase) || value.StartsWith("disguised", StringComparison.CurrentCultureIgnoreCase) || (value.StartsWith("was-")) || value.Equals("client-ip"))
             {
                 return false;
             }
@@ -53,37 +53,32 @@ namespace Dan.Proxy.Services
             {
                 foreach (var header in incomingRequest.Headers)
                 {
-                    _logger.LogInformation($"Incoming::: header {header.Key} : value: {header.Value.FirstOrDefault()}");
+                    _logger.LogInformation($"Incoming::: header {header.Key} : value: {header.Value.Single()}");
                 }
             }
 
             var outgoingRequest = new HttpRequestMessage(HttpMethod.Get, url);
-
-            if (incomingRequest.Headers.TryGetValues("Accept", out var acceptHeaders))
-            {
-                outgoingRequest.Headers.TryAddWithoutValidation("Accept", acceptHeaders.ToArray());
-            }
-            else
-            {
-                outgoingRequest.Headers.Add("Accept", "application/json");
-            }
-
-            if (incomingRequest.Headers.TryGetValues("Authorization", out var authHeaderValues))
-            {
-                outgoingRequest.Headers.Add("Authorization", authHeaderValues.ToArray());
-            }
 
             try
             {
 
                 foreach (var header in incomingRequest.Headers.Where(x => IsEligibleHeader(x.Key)))
                 {
-                    outgoingRequest.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    outgoingRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
 
                     if (_settings.DebugMode)
                     {
-                        _logger.LogInformation($"Outgoing::: header {header.Key} : value: {header.Value}");
+                        _logger.LogInformation($"Outgoing::: header {header.Key} : value: {header.Value.Single()}");
                     }
+                }
+
+                if (incomingRequest.Headers.TryGetValues("Accept", out var acceptHeaders))
+                {
+                    outgoingRequest.Headers.TryAddWithoutValidation("Accept", acceptHeaders.ToArray());
+                }
+                else
+                {
+                    outgoingRequest.Headers.Add("Accept", "application/json");
                 }
 
                 var incomingResponse = await client.SendAsync(outgoingRequest);
