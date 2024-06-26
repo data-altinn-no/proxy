@@ -20,10 +20,16 @@ namespace Dan.Proxy.Services
             _logger = loggerFactory.CreateLogger<DanProxyService>();
             _httpClientFactory = httpClientFactory;
             _settings = settings.Value;
+
+            if (_settings.DebugMode)
+            _logger.LogInformation($"Settings ignoredheaders {string.Join(",", _settings.IgnoredHeaders)} debugmode: {_settings.DebugMode}");
         }
 
         private bool IsEligibleHeader(string value)
         {
+            if (value.Equals("Host"))
+                return false;
+
             if (_settings.IgnoredHeaders.Length > 0 && _settings.IgnoredHeaders.Contains(value))
             {
                 return false;

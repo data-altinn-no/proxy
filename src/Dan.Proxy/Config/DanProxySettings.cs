@@ -8,8 +8,6 @@ namespace Dan.Proxy.Config
 {
     public class DanProxySettings
     {
-        public string validEndPoints { get; set; } = string.Empty;
-
         public bool DebugMode { get; set; } = false;
 
         private string Ignored = string.Empty;
