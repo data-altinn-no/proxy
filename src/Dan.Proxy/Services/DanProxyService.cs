@@ -27,7 +27,7 @@ namespace Dan.Proxy.Services
 
         private bool IsEligibleHeader(string value)
         {
-            if (value.Equals("Host"))
+            if (value.Trim().Equals("Host", StringComparison.OrdinalIgnoreCase) || value.Trim().StartsWith("x-", StringComparison.OrdinalIgnoreCase))
                 return false;
 
             if (_settings.IgnoredHeaders.Length > 0 && _settings.IgnoredHeaders.Contains(value))
