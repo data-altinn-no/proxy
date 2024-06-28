@@ -65,7 +65,15 @@ namespace Dan.Proxy.Services
 
                 foreach (var header in incomingRequest.Headers.Where(x => IsEligibleHeader(x.Key)))
                 {
-                    outgoingRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+                    if (header.Key.Equals("Legal-Mandate", StringComparison.OrdinalIgnoreCase))
+                    {
+                        outgoingRequest.Headers.TryAddWithoutValidation("Legal-Mandate", header.Value.ToArray());
+                    }
+                    else
+                    {
+                        outgoingRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+                    }
+
 
                     if (_settings.DebugMode)
                     {
