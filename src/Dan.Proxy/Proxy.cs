@@ -18,7 +18,7 @@ namespace Dan.Proxy
         }
 
         [Function("DanProxy")]
-        public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequestData req)
+        public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "get", "post")] HttpRequestData req)
         {
             if (req.Query["url"] == null)
             {
