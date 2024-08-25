@@ -40,7 +40,26 @@ namespace Dan.Proxy.Services
 
         public async Task<HttpResponseData> ProxyRequest(HttpRequestData incomingRequest)
         {
-            var client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient);
+            HttpClient client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient);
+
+            if (_settings.IgnoreCertificateValidation)
+            {
+                var handler = new HttpClientHandler();
+                handler.ClientCertificateOptions = ClientCertificateOption.Manual;
+                handler.ServerCertificateCustomValidationCallback =
+                    (httpRequestMessage, cert, cetChain, policyErrors) =>
+                    {
+                        return true;
+                    };
+
+                client = new HttpClient(handler);
+            }
+            {
+                foreach (var header in incomingRequest.Headers)
+                {
+                    _logger.LogInformation($"Incoming::: header {header.Key} : value: {string.Join(",", header.Value.ToArray())}");
+                }
+            }
             var url = "https://" + HttpUtility.UrlDecode(incomingRequest.Query["url"].ToString());
 
             if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))

@@ -12,5 +12,7 @@ namespace Dan.Proxy.Config
 
         private string Ignored = string.Empty;
         public string[] IgnoredHeaders => Ignored.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+        public bool IgnoreCertificateValidation { get; set; } = true;
     }
 }
