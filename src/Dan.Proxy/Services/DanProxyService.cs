@@ -5,6 +5,7 @@ using System.Net;
 using System.Web;
 using Dan.Proxy.Config;
 using Dan.Proxy.Interfaces;
+using System.Reflection.PortableExecutable;
 
 namespace Dan.Proxy.Services
 {
@@ -86,9 +87,14 @@ namespace Dan.Proxy.Services
 
             if (outgoingRequest.Method != HttpMethod.Get)
             {
-                if (incomingRequest.Body.Length>0)
+                using StreamReader reader = new StreamReader(incomingRequest.Body);
+                string requestBody = await reader.ReadToEndAsync();
+
+                _logger.LogInformation($"Incoming::: body {requestBody}");
+
+                if (!string.IsNullOrEmpty(requestBody))
                 {
-                    outgoingRequest.Content = new StringContent(await incomingRequest.ReadAsStringAsync());
+                    outgoingRequest.Content = new StringContent(requestBody);
                 }
             }
 
