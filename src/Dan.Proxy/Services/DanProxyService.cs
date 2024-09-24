@@ -86,7 +86,10 @@ namespace Dan.Proxy.Services
 
             if (outgoingRequest.Method != HttpMethod.Get)
             {
-                outgoingRequest.Content = new StreamContent(incomingRequest.Body);
+                if (incomingRequest.Body.Length>0)
+                {
+                    outgoingRequest.Content = new StringContent(await incomingRequest.ReadAsStringAsync());
+                }
             }
 
             try
