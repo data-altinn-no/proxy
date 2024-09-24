@@ -25,12 +25,12 @@ namespace Dan.Proxy.Services
             _logger.LogInformation($"Settings ignoredheaders {string.Join(",", _settings.IgnoredHeaders)} debugmode: {_settings.DebugMode}");
         }
 
-        private bool IsEligibleHeader(string value)
+        private bool IsEligibleHeader(string headerName)
         {
-            if (value.Trim().Equals("Host", StringComparison.OrdinalIgnoreCase) || value.Trim().StartsWith("x-", StringComparison.OrdinalIgnoreCase))
+            if (headerName.Trim().Equals("Host", StringComparison.OrdinalIgnoreCase) || headerName.Trim().StartsWith("x-", StringComparison.OrdinalIgnoreCase))
                 return false;
 
-            if (_settings.IgnoredHeaders.Length > 0 && _settings.IgnoredHeaders.Contains(value))
+            if (_settings.IgnoredHeaders.Length > 0 && _settings.IgnoredHeaders.Contains(headerName))
             {
                 return false;
             }
@@ -40,7 +40,7 @@ namespace Dan.Proxy.Services
 
         public async Task<HttpResponseData> ProxyRequest(HttpRequestData incomingRequest)
         {
-            HttpClient client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient);
+            HttpClient client;
 
             if (_settings.IgnoreCertificateValidation)
             {
@@ -52,14 +52,19 @@ namespace Dan.Proxy.Services
                         return true;
                     };
 
-                client = new HttpClient(handler);
+               client = new HttpClient(handler);
             }
+            else
             {
-                foreach (var header in incomingRequest.Headers)
-                {
-                    _logger.LogInformation($"Incoming::: header {header.Key} : value: {string.Join(",", header.Value.ToArray())}");
-                }
+                client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient);
             }
+            
+            
+            foreach (var header in incomingRequest.Headers)
+            {
+                _logger.LogInformation($"Incoming::: header {header.Key} : headerName: {string.Join(",", header.Value.ToArray())}");
+            }
+            
             var url = "https://" + HttpUtility.UrlDecode(incomingRequest.Query["url"].ToString());
 
             if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
@@ -73,11 +78,16 @@ namespace Dan.Proxy.Services
             {
                 foreach (var header in incomingRequest.Headers)
                 {
-                    _logger.LogInformation($"Incoming::: header {header.Key} : value: {string.Join(",", header.Value.ToArray())}");
+                    _logger.LogInformation($"Incoming::: header {header.Key} : headerName: {string.Join(",", header.Value.ToArray())}");
                 }
             }
 
             var outgoingRequest = new HttpRequestMessage(HttpMethod.Parse(incomingRequest.Method), url);
+
+            if (outgoingRequest.Method != HttpMethod.Get)
+            {
+                outgoingRequest.Content = new StreamContent(incomingRequest.Body);
+            }
 
             try
             {
@@ -92,11 +102,7 @@ namespace Dan.Proxy.Services
                     }
                 }
 
-                if (incomingRequest.Headers.TryGetValues("Accept", out var acceptHeaders))
-                {
-                    outgoingRequest.Headers.TryAddWithoutValidation("Accept", acceptHeaders.ToArray());
-                }
-                else
+                if (!incomingRequest.Headers.TryGetValues("Accept", out var acceptHeaders))
                 {
                     outgoingRequest.Headers.Add("Accept", "application/json");
                 }
