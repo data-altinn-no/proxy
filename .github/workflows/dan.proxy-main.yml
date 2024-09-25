@@ -12,31 +12,74 @@ on:
 env:
   AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
   DOTNET_VERSION: '8.0.x' # set this to the dotnet version to use
+  ARTIFACT_NAME: 'proxy'
 
 jobs:
-  build-and-deploy:
-    runs-on: windows-latest
+  build:
+    runs-on: ubuntu-latest
     steps:
-      - name: 'Checkout GitHub Action'
-        uses: actions/checkout@v2
-
-      - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
-        uses: actions/setup-dotnet@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-dotnet@v3
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: 'Resolve Project Dependencies Using Dotnet'
-        shell: pwsh
+      - name: Dotnet build and publish Function App with configuration
         run: |
-          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
-          dotnet build --configuration Release --output ./output
-          popd
+          dotnet build --configuration 'Release'
+          dotnet publish -c 'Release' --no-restore -o './published-app'
+        working-directory: './'
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.ARTIFACT_NAME}}
+          path: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/published-app
+          include-hidden-files: true
 
-      - name: 'Run Azure Functions Action'
-        uses: Azure/functions-action@v1
-        id: fa
+  deploy-staging:   
+    runs-on: ubuntu-latest
+    environment: 'staging'
+    needs: [build]
+    steps:
+      - name: 'Download artifact for staging'
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ env.ARTIFACT_NAME}}
+          path: './downloaded-app'
+      - name: 'Deploy artifact to staging'
+        uses: azure/functions-action@v1
         with:
           app-name: ${{ secrets.FUNCTION_NAME }}
-          slot-name: 'staging'
-          package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+          package: './downloaded-app'
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+
+  swap-staging-prod:   
+    runs-on: ubuntu-latest
+    environment: 'production'
+    needs: [deploy-staging]
+    steps:
+      - name: 'Login via Azure CLI'
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.azure_credentials }}
+      - name: 'Swap staging and production'
+        run: |
+          az webapp deployment slot swap -g '${{ secrets.RESOURCE_GROUP_PROD }}' -n '${{ secrets.FUNCTION_NAME }}' --slot 'staging' --target-slot 'production'
+      - name: 'Azure logout'
+        run: |
+          az logout
+
+  redeploy-staging:   
+    runs-on: ubuntu-latest
+    environment: 'staging'
+    needs: [swap-staging-prod]
+    steps:
+      - name: 'Download artifact for staging'
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ env.ARTIFACT_NAME}}
+          path: './downloaded-app'
+      - name: 'Deploy artifact to staging'
+        uses: azure/functions-action@v1
+        with:
+          app-name: ${{ secrets.FUNCTION_NAME }}
+          package: './downloaded-app'
           publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
