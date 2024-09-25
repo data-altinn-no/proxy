@@ -6,6 +6,7 @@ using System.Web;
 using Dan.Proxy.Config;
 using Dan.Proxy.Interfaces;
 using System.Reflection.PortableExecutable;
+using System.Text;
 
 namespace Dan.Proxy.Services
 {
@@ -92,9 +93,13 @@ namespace Dan.Proxy.Services
 
                 _logger.LogInformation($"Incoming::: body {requestBody}");
 
+                // Default to text/plain if nothing found, as that is the default string content header
+                var contentHeader = incomingRequest.Headers.TryGetValues("Content-Type", out var contentTypes) ? 
+                    contentTypes.FirstOrDefault() ?? "text/plain" : 
+                    "text/plain";
                 if (!string.IsNullOrEmpty(requestBody))
                 {
-                    outgoingRequest.Content = new StringContent(requestBody);
+                    outgoingRequest.Content = new StringContent(requestBody, Encoding.UTF8, contentHeader);
                 }
             }
 
