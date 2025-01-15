@@ -7,6 +7,8 @@ using Dan.Proxy.Config;
 using Dan.Proxy.Interfaces;
 using System.Reflection.PortableExecutable;
 using System.Text;
+using System.Security.Cryptography.X509Certificates;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Dan.Proxy.Services
 {
@@ -44,7 +46,16 @@ namespace Dan.Proxy.Services
         {
             HttpClient client;
 
-            if (_settings.IgnoreCertificateValidation)
+            if (incomingRequest.Headers.TryGetValues(_settings.CustomCertificateHeaderName, out var cert))
+            {               
+                var clientCert = new X509Certificate2(Convert.FromBase64String(cert.Single()));
+                var handler = new HttpClientHandler();
+                handler.ClientCertificates.Add(clientCert);
+
+                client = new HttpClient(handler);
+                _logger.LogInformation("Client certificate provided in header");
+            }
+            else if (_settings.IgnoreCertificateValidation)
             {
                 var handler = new HttpClientHandler();
                 handler.ClientCertificateOptions = ClientCertificateOption.Manual;
@@ -55,10 +66,14 @@ namespace Dan.Proxy.Services
                     };
 
                client = new HttpClient(handler);
+
+                _logger.LogInformation("Ignoring certificate validation");
             }
+            
             else
             {
                 client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient);
+                _logger.LogInformation("Running standard proxy setup");
             }
             
             
@@ -97,6 +112,9 @@ namespace Dan.Proxy.Services
                 var contentHeader = incomingRequest.Headers.TryGetValues("Content-Type", out var contentTypes) ? 
                     contentTypes.FirstOrDefault() ?? "text/plain" : 
                     "text/plain";
+
+                contentHeader = contentHeader.Substring(0, contentHeader.IndexOf(';'));
+
                 if (!string.IsNullOrEmpty(requestBody))
                 {
                     outgoingRequest.Content = new StringContent(requestBody, Encoding.UTF8, contentHeader);
