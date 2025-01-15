@@ -46,6 +46,15 @@ namespace Dan.Proxy.Services
         {
             HttpClient client;
 
+            if (_settings.DebugMode)
+            {
+                _logger.LogInformation($"Debug mode enabled - IgnoreCertificateValidation: {_settings.IgnoreCertificateValidation},  CustomCertificateHeaderName: {_settings.CustomCertificateHeaderName}, IgnoredHeaders: { string.Join(",", _settings.IgnoredHeaders)}");
+                foreach (var header in incomingRequest.Headers)
+                {
+                    _logger.LogInformation($"Incoming::: header {header.Key} : headerName: {string.Join(",", header.Value.ToArray())}");
+                }
+            }
+
             if (incomingRequest.Headers.TryGetValues(_settings.CustomCertificateHeaderName, out var cert))
             {               
                 var clientCert = new X509Certificate2(Convert.FromBase64String(cert.Single()));
@@ -76,12 +85,6 @@ namespace Dan.Proxy.Services
                 _logger.LogInformation("Running standard proxy setup");
             }
             
-            
-            foreach (var header in incomingRequest.Headers)
-            {
-                _logger.LogInformation($"Incoming::: header {header.Key} : headerName: {string.Join(",", header.Value.ToArray())}");
-            }
-            
             var url = "https://" + HttpUtility.UrlDecode(incomingRequest.Query["url"].ToString());
 
             if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
@@ -89,14 +92,6 @@ namespace Dan.Proxy.Services
                 var response = incomingRequest.CreateResponse(HttpStatusCode.BadRequest);
                 await response.WriteStringAsync("Invalid url provided");
                 return response;
-            }
-
-            if (_settings.DebugMode)
-            {
-                foreach (var header in incomingRequest.Headers)
-                {
-                    _logger.LogInformation($"Incoming::: header {header.Key} : headerName: {string.Join(",", header.Value.ToArray())}");
-                }
             }
 
             var outgoingRequest = new HttpRequestMessage(HttpMethod.Parse(incomingRequest.Method), url);
@@ -113,6 +108,7 @@ namespace Dan.Proxy.Services
                     contentTypes.FirstOrDefault() ?? "text/plain" : 
                     "text/plain";
 
+                //remove any charset information on body
                 contentHeader = contentHeader.Substring(0, contentHeader.IndexOf(';'));
 
                 if (!string.IsNullOrEmpty(requestBody))
