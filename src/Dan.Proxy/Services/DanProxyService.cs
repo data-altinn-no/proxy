@@ -55,17 +55,17 @@ namespace Dan.Proxy.Services
                 }
             }
 
-            if (incomingRequest.Headers.TryGetValues(_settings.CustomCertificateHeaderName, out var cert))
-            {               
-                var clientCert = new X509Certificate2(Convert.FromBase64String(cert.Single()));
+            if (incomingRequest.Headers.TryGetValues(_settings.CustomCertificateHeaderName, out var certHeaders))
+            {
+                _logger.LogInformation("Client certificate provided in header");
+                var clientCert = new X509Certificate2(Convert.FromBase64String(certHeaders.Single())); //there should only be 1 or 0
                 var handler = new HttpClientHandler();
                 handler.ClientCertificates.Add(clientCert);
-
                 client = new HttpClient(handler);
-                _logger.LogInformation("Client certificate provided in header");
             }
             else if (_settings.IgnoreCertificateValidation)
             {
+                _logger.LogInformation("Ignoring certificate validation");
                 var handler = new HttpClientHandler();
                 handler.ClientCertificateOptions = ClientCertificateOption.Manual;
                 handler.ServerCertificateCustomValidationCallback =
@@ -75,14 +75,12 @@ namespace Dan.Proxy.Services
                     };
 
                client = new HttpClient(handler);
-
-                _logger.LogInformation("Ignoring certificate validation");
             }
             
             else
             {
-                client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient);
                 _logger.LogInformation("Running standard proxy setup");
+                client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient); 
             }
             
             var url = "https://" + HttpUtility.UrlDecode(incomingRequest.Query["url"].ToString());
@@ -108,9 +106,13 @@ namespace Dan.Proxy.Services
                     contentTypes.FirstOrDefault() ?? "text/plain" : 
                     "text/plain";
 
-                //remove any charset information on body
-                contentHeader = contentHeader.Substring(0, contentHeader.IndexOf(';'));
+                //remove any charset information on body if it exists
+                if (contentHeader.IndexOf(';') > 0)
+                {
+                    contentHeader = contentHeader.Substring(0, contentHeader.IndexOf(';'));
+                }
 
+                //remove any charset information on body
                 if (!string.IsNullOrEmpty(requestBody))
                 {
                     outgoingRequest.Content = new StringContent(requestBody, Encoding.UTF8, contentHeader);
