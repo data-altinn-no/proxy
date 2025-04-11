@@ -73,7 +73,7 @@ jobs:
     needs: [swap-staging-prod]
     steps:
       - name: 'Download artifact for staging'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME}}
           path: './downloaded-app'
