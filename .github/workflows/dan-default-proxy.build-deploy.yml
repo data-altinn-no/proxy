@@ -1,0 +1,22 @@
+name: Deploy Default Proxy
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**/README.md'
+      - '**/*.yml'
+  workflow_dispatch:
+
+jobs:
+  run:
+    uses: data-altinn-no/deploy-actions/.github/workflows/dan-noslots-deploy-flow.yml@main
+    with:
+      artifact_name: 'dan-proxy-default' # Can be omitted, defaults to 'artifact'
+      function_project_path: 'src/Dan.Proxy'
+    secrets:
+      function_app_name: ${{ secrets.DEFAULT_PROXY_FUNCTIONAPP_NAME }}
+      azure_artifact_pat: ${{ secrets.AZURE_ARTIFACTS_PAT }} # Deprecated, shouldn't need
+      publish_profile: ${{ secrets.DEFAULT_PROXY_AZURE_FUNCTION_PUBLISH_CREDS }}
+      azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+      resource_group_prod: ${{ secrets.RESOURCE_GROUP_PROD }} # Deprecated, shouldn't need
