@@ -17,4 +17,3 @@ jobs:
     secrets:
       function_app_name: ${{ secrets.DEFAULT_PROXY_FUNCTIONAPP_NAME }}
       publish_profile: ${{ secrets.DEFAULT_PROXY_AZURE_FUNCTION_PUBLISH_CREDS }}
-      resource_group_prod: ${{ secrets.RESOURCE_GROUP_PROD }} # Deprecated, shouldn't need
