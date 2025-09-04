@@ -14,11 +14,8 @@ var host = new HostBuilder()
         config.AddJsonFile("worker.json", optional: true);
     })
     .ConfigureServices((context, services) =>
-    {
-        var configurationRoot = context.Configuration;
-        services.Configure<DanProxySettings>(configurationRoot);
-
-        // services.Configure<DanProxySettings>(context.Configuration);
+    {       
+        services.Configure<DanProxySettings>(context.Configuration);
         services.AddTransient<IDanProxyService, DanProxyService>();
         services.AddHttpClient(Constants.DanProxyHttpClient);
     })
