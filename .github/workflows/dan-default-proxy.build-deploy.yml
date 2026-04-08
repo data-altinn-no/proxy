@@ -12,6 +12,7 @@ jobs:
   run:
     uses: data-altinn-no/deploy-actions/.github/workflows/dan-noslots-deploy-flow.yml@077be64090710476cb8103764dd85154af8214eb
     permissions:
+      actions: read
       contents: read
     with:
       artifact_name: 'dan-proxy-default' # Can be omitted, defaults to 'artifact'
