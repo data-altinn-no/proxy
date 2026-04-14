@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   run:
-    uses: data-altinn-no/deploy-actions/.github/workflows/dan-noslots-deploy-flow.yml@009dae7d9c3f0ddab3c1be13fe0c76177e174d74
+    uses: data-altinn-no/deploy-actions/.github/workflows/dan-noslots-deploy-flow.yml@5f9c66f7ba21363553819f102d922c66eae18183
     with:
       artifact_name: 'dan-proxy-default' # Can be omitted, defaults to 'artifact'
       function_project_path: 'src/Dan.Proxy'
