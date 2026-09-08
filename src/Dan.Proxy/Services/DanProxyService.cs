@@ -55,16 +55,17 @@ namespace Dan.Proxy.Services
                 }
             }
 
-            var url = "https://" + HttpUtility.UrlDecode(incomingRequest.Query["url"].ToString());
+            var decodedUrl = HttpUtility.UrlDecode(incomingRequest.Query["url"]?.ToString());
+            var url = "https://" + decodedUrl;
 
-            if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var targetUri))
             {
                 var response = incomingRequest.CreateResponse(HttpStatusCode.BadRequest);
                 await response.WriteStringAsync("Invalid url provided");
                 return response;
             }
 
-            var targetHost = new Uri(url).Host;
+            var targetHost = targetUri.Host;
             var ignoreCertValidationForHost = _settings.IgnoreCertificateValidationHostsList
                 .Any(h => h.Equals(targetHost, StringComparison.OrdinalIgnoreCase));
 
@@ -85,10 +86,29 @@ namespace Dan.Proxy.Services
                 handler.ServerCertificateCustomValidationCallback =
                     (httpRequestMessage, cert, cetChain, policyErrors) =>
                     {
-                        return true;
+                        // Global bypass er eksplisitt skrudd på - gjelder alt.
+                        if (_settings.IgnoreCertificateValidation)
+                        {
+                            return true;
+                        }
+
+                        // Host-spesifikk bypass: ignorer kun sertifikatfeil for det
+                        // konkrete alltidlistede hostet. Hvis requesten (f.eks. via en
+                        // redirect) faktisk går mot et annet host, skal normal validering
+                        // gjelde for det hostet - ellers kan et alltidlistet host
+                        // "smitte" tillit videre til et vilkårlig annet host.
+                        var requestHost = httpRequestMessage.RequestUri?.Host;
+                        if (!string.IsNullOrEmpty(requestHost)
+                            && _settings.IgnoreCertificateValidationHostsList
+                                .Any(h => h.Equals(requestHost, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            return true;
+                        }
+
+                        return policyErrors == System.Net.Security.SslPolicyErrors.None;
                     };
 
-               client = new HttpClient(handler);
+                client = new HttpClient(handler);
             }
             
             else
