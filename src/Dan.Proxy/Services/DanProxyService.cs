@@ -55,6 +55,19 @@ namespace Dan.Proxy.Services
                 }
             }
 
+            var url = "https://" + HttpUtility.UrlDecode(incomingRequest.Query["url"].ToString());
+
+            if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
+            {
+                var response = incomingRequest.CreateResponse(HttpStatusCode.BadRequest);
+                await response.WriteStringAsync("Invalid url provided");
+                return response;
+            }
+
+            var targetHost = new Uri(url).Host;
+            var ignoreCertValidationForHost = _settings.IgnoreCertificateValidationHostsList
+                .Any(h => h.Equals(targetHost, StringComparison.OrdinalIgnoreCase));
+
             if (incomingRequest.Headers.TryGetValues(_settings.CustomCertificateHeaderName, out var certHeaders))
             {
                 _logger.LogInformation("Client certificate provided in header");
@@ -62,10 +75,11 @@ namespace Dan.Proxy.Services
                 var handler = new HttpClientHandler();
                 handler.ClientCertificates.Add(clientCert);
                 client = new HttpClient(handler);
-            }
-            else if (_settings.IgnoreCertificateValidation)
+            }   
+            else if (_settings.IgnoreCertificateValidation || ignoreCertValidationForHost)
             {
                 _logger.LogInformation("Ignoring certificate validation");
+
                 var handler = new HttpClientHandler();
                 handler.ClientCertificateOptions = ClientCertificateOption.Manual;
                 handler.ServerCertificateCustomValidationCallback =
@@ -81,15 +95,6 @@ namespace Dan.Proxy.Services
             {
                 _logger.LogInformation("Running standard proxy setup");
                 client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient); 
-            }
-            
-            var url = "https://" + HttpUtility.UrlDecode(incomingRequest.Query["url"].ToString());
-
-            if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
-            {
-                var response = incomingRequest.CreateResponse(HttpStatusCode.BadRequest);
-                await response.WriteStringAsync("Invalid url provided");
-                return response;
             }
 
             var outgoingRequest = new HttpRequestMessage(HttpMethod.Parse(incomingRequest.Method), url);
