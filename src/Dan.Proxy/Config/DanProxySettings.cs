@@ -22,6 +22,7 @@ namespace Dan.Proxy.Config
         /// </summary>
         public string IgnoreCertificateValidationHosts { get; set; } = string.Empty;
         public string[] IgnoreCertificateValidationHostsList =>
-            IgnoreCertificateValidationHosts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            (IgnoreCertificateValidationHosts ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 }
