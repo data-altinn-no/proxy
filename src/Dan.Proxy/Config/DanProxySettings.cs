@@ -23,6 +23,14 @@ namespace Dan.Proxy.Config
         public string IgnoreCertificateValidationHosts { get; set; } = string.Empty;
         public string[] IgnoreCertificateValidationHostsList =>
             (IgnoreCertificateValidationHosts ?? string.Empty)
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(NormalizeHostEntry)
+                .ToArray();
+
+        // Defensiv normalisering: hvis noen ved uhell legger inn en full URL
+        // (med scheme og/eller sti) i stedet for bare hostnavnet, trekk ut
+        // selve hostnavnet automatisk i stedet for å feile stille.
+        private static string NormalizeHostEntry(string entry) =>
+            Uri.TryCreate(entry, UriKind.Absolute, out var parsed) ? parsed.Host : entry;
     }
 }

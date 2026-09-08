@@ -117,7 +117,7 @@ namespace Dan.Proxy.Services
                 client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient); 
             }
 
-            var outgoingRequest = new HttpRequestMessage(HttpMethod.Parse(incomingRequest.Method), url);
+            var outgoingRequest = new HttpRequestMessage(HttpMethod.Parse(incomingRequest.Method), targetUri);
 
             if (outgoingRequest.Method != HttpMethod.Get)
             {
