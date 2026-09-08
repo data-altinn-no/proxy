@@ -55,6 +55,20 @@ namespace Dan.Proxy.Services
                 }
             }
 
+            var decodedUrl = HttpUtility.UrlDecode(incomingRequest.Query["url"]?.ToString());
+            var url = "https://" + decodedUrl;
+
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var targetUri))
+            {
+                var response = incomingRequest.CreateResponse(HttpStatusCode.BadRequest);
+                await response.WriteStringAsync("Invalid url provided");
+                return response;
+            }
+
+            var targetHost = targetUri.Host;
+            var ignoreCertValidationForHost = _settings.IgnoreCertificateValidationHostsList
+                .Any(h => h.Equals(targetHost, StringComparison.OrdinalIgnoreCase));
+
             if (incomingRequest.Headers.TryGetValues(_settings.CustomCertificateHeaderName, out var certHeaders))
             {
                 _logger.LogInformation("Client certificate provided in header");
@@ -62,19 +76,39 @@ namespace Dan.Proxy.Services
                 var handler = new HttpClientHandler();
                 handler.ClientCertificates.Add(clientCert);
                 client = new HttpClient(handler);
-            }
-            else if (_settings.IgnoreCertificateValidation)
+            }   
+            else if (_settings.IgnoreCertificateValidation || ignoreCertValidationForHost)
             {
                 _logger.LogInformation("Ignoring certificate validation");
+
                 var handler = new HttpClientHandler();
                 handler.ClientCertificateOptions = ClientCertificateOption.Manual;
                 handler.ServerCertificateCustomValidationCallback =
                     (httpRequestMessage, cert, cetChain, policyErrors) =>
                     {
-                        return true;
+                        // Global bypass er eksplisitt skrudd på - gjelder alt.
+                        if (_settings.IgnoreCertificateValidation)
+                        {
+                            return true;
+                        }
+
+                        // Host-spesifikk bypass: ignorer kun sertifikatfeil for det
+                        // konkrete alltidlistede hostet. Hvis requesten (f.eks. via en
+                        // redirect) faktisk går mot et annet host, skal normal validering
+                        // gjelde for det hostet - ellers kan et alltidlistet host
+                        // "smitte" tillit videre til et vilkårlig annet host.
+                        var requestHost = httpRequestMessage.RequestUri?.Host;
+                        if (!string.IsNullOrEmpty(requestHost)
+                            && _settings.IgnoreCertificateValidationHostsList
+                                .Any(h => h.Equals(requestHost, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            return true;
+                        }
+
+                        return policyErrors == System.Net.Security.SslPolicyErrors.None;
                     };
 
-               client = new HttpClient(handler);
+                client = new HttpClient(handler);
             }
             
             else
@@ -82,17 +116,8 @@ namespace Dan.Proxy.Services
                 _logger.LogInformation("Running standard proxy setup");
                 client = _httpClientFactory.CreateClient(Constants.DanProxyHttpClient); 
             }
-            
-            var url = "https://" + HttpUtility.UrlDecode(incomingRequest.Query["url"].ToString());
 
-            if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
-            {
-                var response = incomingRequest.CreateResponse(HttpStatusCode.BadRequest);
-                await response.WriteStringAsync("Invalid url provided");
-                return response;
-            }
-
-            var outgoingRequest = new HttpRequestMessage(HttpMethod.Parse(incomingRequest.Method), url);
+            var outgoingRequest = new HttpRequestMessage(HttpMethod.Parse(incomingRequest.Method), targetUri);
 
             if (outgoingRequest.Method != HttpMethod.Get)
             {
