@@ -124,7 +124,10 @@ namespace Dan.Proxy.Services
                 using StreamReader reader = new StreamReader(incomingRequest.Body);
                 string requestBody = await reader.ReadToEndAsync();
 
-                _logger.LogInformation($"Incoming::: body {requestBody}");
+                if (_settings.DebugMode) 
+                {
+                    _logger.LogInformation($"Incoming::: body {requestBody}");
+                }
 
                 // Default to text/plain if nothing found, as that is the default string content header
                 var contentHeader = incomingRequest.Headers.TryGetValues("Content-Type", out var contentTypes) ? 
