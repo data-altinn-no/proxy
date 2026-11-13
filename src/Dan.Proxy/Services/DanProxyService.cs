@@ -5,10 +5,8 @@ using System.Net;
 using System.Web;
 using Dan.Proxy.Config;
 using Dan.Proxy.Interfaces;
-using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Security.Cryptography.X509Certificates;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Dan.Proxy.Services
 {
@@ -167,7 +165,7 @@ namespace Dan.Proxy.Services
 
                 var incomingResponse = await client.SendAsync(outgoingRequest);
 
-                _logger.LogInformation($"Response from {url} is {incomingResponse.StatusCode}");
+                _logger.LogInformation("Response from host {TargetHost} is {StatusCode}", targetHost, incomingResponse.StatusCode);
 
                 var outgoingResponse = incomingRequest.CreateResponse(incomingResponse.StatusCode);
 

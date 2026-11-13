@@ -27,7 +27,7 @@ namespace Dan.Proxy
                 return response;
             }
 
-            _logger.LogInformation($"Proxy request to {req.Query["url"]}");
+            _logger.LogInformation("Proxy request received");
             return await _proxyService.ProxyRequest(req);
         }
     }
