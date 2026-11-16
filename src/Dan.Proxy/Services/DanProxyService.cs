@@ -16,13 +16,16 @@ namespace Dan.Proxy.Services
     {
         private readonly ILogger<DanProxyService> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IClientCertificateHttpClientProvider _clientCertificateHttpClientProvider;
         private readonly DanProxySettings _settings;
 
         public DanProxyService(
-            ILoggerFactory loggerFactory, IHttpClientFactory httpClientFactory, IOptions<DanProxySettings> settings)
+            ILoggerFactory loggerFactory, IHttpClientFactory httpClientFactory,
+            IClientCertificateHttpClientProvider clientCertificateHttpClientProvider, IOptions<DanProxySettings> settings)
         {
             _logger = loggerFactory.CreateLogger<DanProxyService>();
             _httpClientFactory = httpClientFactory;
+            _clientCertificateHttpClientProvider = clientCertificateHttpClientProvider;
             _settings = settings.Value;
 
             if (_settings.DebugMode)
@@ -72,10 +75,8 @@ namespace Dan.Proxy.Services
             if (incomingRequest.Headers.TryGetValues(_settings.CustomCertificateHeaderName, out var certHeaders))
             {
                 _logger.LogInformation("Client certificate provided in header");
-                var clientCert = new X509Certificate2(Convert.FromBase64String(certHeaders.Single())); //there should only be 1 or 0
-                var handler = new HttpClientHandler();
-                handler.ClientCertificates.Add(clientCert);
-                client = new HttpClient(handler);
+                // Shared client per certificate, so connections are reused between requests.
+                client = _clientCertificateHttpClientProvider.GetClient(certHeaders.Single()); //there should only be 1 or 0
             }   
             else if (_settings.IgnoreCertificateValidation || ignoreCertValidationForHost)
             {
