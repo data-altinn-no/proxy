@@ -13,7 +13,8 @@ namespace Dan.Proxy.Config
         public string Ignored { get; set; } = string.Empty;
         public string[] IgnoredHeaders => Ignored.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
-        public bool IgnoreCertificateValidation { get; set; } = true;
+        // Off by default, so an app where the setting is missing still validates target certificates.
+        public bool IgnoreCertificateValidation { get; set; } = false;
         public string CustomCertificateHeaderName { get; set; } = string.Empty;
         /// <summary>
         /// Komma-separert liste over hostnavn der sertifikatvalidering skal ignoreres.

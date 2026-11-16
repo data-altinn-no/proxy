@@ -75,6 +75,44 @@ namespace Dan.Proxy.UnitTest
         }
 
         [TestMethod]
+        public void Settings_ValidateTargetCertificatesByDefault()
+        {
+            Assert.IsFalse(new DanProxySettings().IgnoreCertificateValidation);
+        }
+
+        [TestMethod]
+        public async Task DefaultSettings_RejectTargetWithUntrustedCertificate()
+        {
+            await using var fixture = new Fixture(new DanProxySettings(), standardClientTrustsServer: false);
+
+            await Assert.ThrowsExactlyAsync<HttpRequestException>(() => fixture.Service.ProxyRequest(fixture.CreateRequest()));
+
+            Assert.AreEqual(0, fixture.Server.Requests.Count, "No request may reach a target whose certificate was not validated.");
+        }
+
+        [TestMethod]
+        public async Task IgnoreCertificateValidationTurnedOn_AcceptsTargetWithUntrustedCertificate()
+        {
+            var settings = new DanProxySettings { IgnoreCertificateValidation = true };
+            await using var fixture = new Fixture(settings, standardClientTrustsServer: false);
+
+            var response = await fixture.SendAsync(fixture.CreateRequest());
+
+            Assert.AreEqual(HttpStatusCode.OK, response.Status);
+        }
+
+        [TestMethod]
+        public async Task TargetInIgnoreValidationHosts_AcceptsUntrustedCertificateForThatHost()
+        {
+            var settings = new DanProxySettings { IgnoreCertificateValidationHosts = "127.0.0.1" };
+            await using var fixture = new Fixture(settings, standardClientTrustsServer: false);
+
+            var response = await fixture.SendAsync(fixture.CreateRequest());
+
+            Assert.AreEqual(HttpStatusCode.OK, response.Status);
+        }
+
+        [TestMethod]
         public async Task CertificateInHeader_IsPresentedToTargetAndConnectionIsReused()
         {
             await using var fixture = new Fixture();
