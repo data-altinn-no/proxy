@@ -92,5 +92,26 @@ namespace Dan.Proxy.UnitTest
                 Assert.IsFalse(request.Headers.ContainsKey("Cookie"), "The shared handler must not replay cookies.");
             }
         }
+
+        [TestMethod]
+        public async Task ClientDroppedFromTheCache_KeepsWorkingForARequestThatStillUsesIt()
+        {
+            await using var server = new MtlsTestServer();
+            using var provider = CreateProvider(server);
+            var headerValues = TestCertificates.CreateDistinctHeaderValues(ClientCertificateHttpClientProvider.MaxClients + 1);
+            var first = provider.GetClient(headerValues[0]);
+            await CallAsync(first, server);
+
+            // Fill the cache with other header values until the first client is pushed out.
+            foreach (var headerValue in headerValues.Skip(1))
+            {
+                provider.GetClient(headerValue);
+            }
+
+            // A request that got hold of the client before it was dropped must still complete.
+            await CallAsync(first, server);
+
+            Assert.AreNotSame(first, provider.GetClient(headerValues[0]), "The first client should have been dropped from the cache.");
+        }
     }
 }

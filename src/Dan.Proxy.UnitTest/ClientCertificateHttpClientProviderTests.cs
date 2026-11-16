@@ -58,6 +58,59 @@ namespace Dan.Proxy.UnitTest
         }
 
         [TestMethod]
+        public void DistinctHeaderValues_AreDifferentStringsForTheSameCertificate()
+        {
+            // The premise for the limit tests below, and the reason the limit exists.
+            var headerValues = TestCertificates.CreateDistinctHeaderValues(3);
+
+            Assert.AreEqual(3, headerValues.Distinct().Count());
+        }
+
+        [TestMethod]
+        public void GetClient_MoreHeaderValuesThanTheLimit_KeepsTheCacheAtTheLimit()
+        {
+            var headerValues = TestCertificates.CreateDistinctHeaderValues(ClientCertificateHttpClientProvider.MaxClients + 5);
+            using var provider = new ClientCertificateHttpClientProvider();
+
+            foreach (var headerValue in headerValues)
+            {
+                provider.GetClient(headerValue);
+            }
+
+            Assert.AreEqual(ClientCertificateHttpClientProvider.MaxClients, provider.CachedClientCount);
+        }
+
+        [TestMethod]
+        public void GetClient_WhenTheCacheIsFull_DropsTheClientUsedLongestAgo()
+        {
+            var limit = ClientCertificateHttpClientProvider.MaxClients;
+            var headerValues = TestCertificates.CreateDistinctHeaderValues(limit + 1);
+            using var provider = new ClientCertificateHttpClientProvider();
+            var clients = headerValues.Take(limit).Select(provider.GetClient).ToArray();
+
+            // Using the oldest client again leaves the second one as the one used longest ago.
+            provider.GetClient(headerValues[0]);
+            provider.GetClient(headerValues[limit]);
+
+            Assert.AreSame(clients[0], provider.GetClient(headerValues[0]), "A client in use must survive.");
+            Assert.AreNotSame(clients[1], provider.GetClient(headerValues[1]), "The client used longest ago must have been dropped.");
+        }
+
+        [TestMethod]
+        public void GetClient_InvalidHeaderValueWhenTheCacheIsFull_DropsNothing()
+        {
+            var limit = ClientCertificateHttpClientProvider.MaxClients;
+            var headerValues = TestCertificates.CreateDistinctHeaderValues(limit);
+            using var provider = new ClientCertificateHttpClientProvider();
+            var clients = headerValues.Select(provider.GetClient).ToArray();
+
+            Assert.ThrowsExactly<FormatException>(() => provider.GetClient("this is not base64"));
+
+            Assert.AreEqual(limit, provider.CachedClientCount);
+            Assert.AreSame(clients[0], provider.GetClient(headerValues[0]));
+        }
+
+        [TestMethod]
         public async Task Dispose_DisposesTheClientsItCreated()
         {
             var (certificate, _) = TestCertificates.CreateClientCertificate("client-a");

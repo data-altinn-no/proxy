@@ -8,27 +8,35 @@ using Dan.Proxy.Interfaces;
 namespace Dan.Proxy.Services
 {
     /// <summary>
-    /// Keeps one HttpClient per client certificate for the lifetime of the worker process.
+    /// Keeps one HttpClient per certificate header value for the lifetime of the worker process.
     ///
     /// Creating a new HttpClient and handler per request gives every request an empty
     /// connection pool, so each call pays for a DNS lookup, a TCP connect and a TLS
     /// handshake, and leaves a socket behind until it is collected. Sharing the handler
-    /// lets requests with the same certificate reuse open connections.
+    /// lets requests with the same header value reuse open connections.
     ///
-    /// Each certificate gets its own handler, and therefore its own connection pool, so a
+    /// Each header value gets its own handler, and therefore its own connection pool, so a
     /// connection authenticated with one certificate is never used for a request that
     /// carries another.
+    ///
+    /// Callers must send exactly the same header value on every request to get reuse. A PFX
+    /// that is exported again is a different value, because every export contains new random
+    /// salt. The cache is therefore limited to <see cref="MaxClients"/> clients, so a caller
+    /// that sends a new value on every request cannot make it grow without bound.
     /// </summary>
     public sealed class ClientCertificateHttpClientProvider : IClientCertificateHttpClientProvider, IDisposable
     {
+        internal const int MaxClients = 20;
+
         // Connections are recycled after this long so that DNS changes are picked up.
         private static readonly TimeSpan ConnectionLifetime = TimeSpan.FromMinutes(10);
 
         // Kept below the 4 minute idle timeout of Azure outbound NAT.
         private static readonly TimeSpan ConnectionIdleTimeout = TimeSpan.FromMinutes(2);
 
-        private readonly ConcurrentDictionary<string, Lazy<HttpClient>> _clients = new();
+        private readonly ConcurrentDictionary<string, CachedClient> _clients = new();
         private readonly Action<SocketsHttpHandler>? _configureHandler;
+        private long _useCounter;
 
         public ClientCertificateHttpClientProvider() : this(null)
         {
@@ -40,27 +48,51 @@ namespace Dan.Proxy.Services
             _configureHandler = configureHandler;
         }
 
+        internal int CachedClientCount => _clients.Count;
+
         public HttpClient GetClient(string base64Certificate)
         {
             // Keyed on a hash of the header value, so the certificate is only parsed the
             // first time it is seen and the private key is not kept as a dictionary key.
             var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(base64Certificate)));
 
-            var lazyClient = _clients.GetOrAdd(key, _ => new Lazy<HttpClient>(() => CreateClient(base64Certificate)));
+            if (!_clients.TryGetValue(key, out var cached))
+            {
+                // Created before anything is dropped, so a header value that cannot be
+                // turned into a client throws here and costs no existing client its place.
+                var created = CreateClient(base64Certificate);
+                MakeRoomForOneMore();
 
-            try
-            {
-                return lazyClient.Value;
+                cached = _clients.GetOrAdd(key, created);
+                if (!ReferenceEquals(cached, created))
+                {
+                    // Another request added the same header value first. This one was never handed out.
+                    created.Dispose();
+                }
             }
-            catch
+
+            cached.LastUsed = Interlocked.Increment(ref _useCounter);
+            return cached.Client;
+        }
+
+        private void MakeRoomForOneMore()
+        {
+            while (_clients.Count >= MaxClients)
             {
-                // Do not keep an entry for a header value that could not be turned into a client.
-                _clients.TryRemove(new KeyValuePair<string, Lazy<HttpClient>>(key, lazyClient));
-                throw;
+                var usedLongestAgo = _clients.MinBy(entry => entry.Value.LastUsed);
+                if (usedLongestAgo.Key is null)
+                {
+                    return;
+                }
+
+                // Dropped, not disposed: a request may still be using the client. Its idle
+                // connections close after ConnectionIdleTimeout, and the rest is left to the
+                // garbage collector.
+                _clients.TryRemove(usedLongestAgo);
             }
         }
 
-        private HttpClient CreateClient(string base64Certificate)
+        private CachedClient CreateClient(string base64Certificate)
         {
             var certificate = new X509Certificate2(Convert.FromBase64String(base64Certificate));
 
@@ -78,20 +110,45 @@ namespace Dan.Proxy.Services
 
             _configureHandler?.Invoke(handler);
 
-            return new HttpClient(handler, disposeHandler: true);
+            return new CachedClient(new HttpClient(handler, disposeHandler: true), certificate);
         }
 
         public void Dispose()
         {
-            foreach (var lazyClient in _clients.Values)
+            foreach (var cached in _clients.Values)
             {
-                if (lazyClient.IsValueCreated)
-                {
-                    lazyClient.Value.Dispose();
-                }
+                cached.Dispose();
             }
 
             _clients.Clear();
+        }
+
+        private sealed class CachedClient : IDisposable
+        {
+            private long _lastUsed;
+
+            public CachedClient(HttpClient client, X509Certificate2 certificate)
+            {
+                Client = client;
+                Certificate = certificate;
+            }
+
+            public HttpClient Client { get; }
+
+            private X509Certificate2 Certificate { get; }
+
+            // A counter rather than a clock, so the order is exact even for requests in the same millisecond.
+            public long LastUsed
+            {
+                get => Interlocked.Read(ref _lastUsed);
+                set => Interlocked.Exchange(ref _lastUsed, value);
+            }
+
+            public void Dispose()
+            {
+                Client.Dispose();
+                Certificate.Dispose();
+            }
         }
     }
 }
