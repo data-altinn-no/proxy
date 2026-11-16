@@ -64,6 +64,7 @@ namespace Dan.Proxy.Services
             }
 
             var targetHost = targetUri.Host;
+            _logger.LogInformation("Proxy request to host {TargetHost}", targetHost);
             var ignoreCertValidationForHost = _settings.IgnoreCertificateValidationHostsList
                 .Any(h => h.Equals(targetHost, StringComparison.OrdinalIgnoreCase));
 
@@ -184,7 +185,7 @@ namespace Dan.Proxy.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error proxying request");
+                _logger.LogError(ex, "Error proxying request to host {TargetHost}", targetHost);
                 Console.WriteLine(ex);
                 throw;
             }

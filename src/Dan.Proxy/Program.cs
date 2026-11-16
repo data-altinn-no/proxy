@@ -24,6 +24,11 @@ var host = new HostBuilder()
             options.IncludeFormattedMessage = true;
             options.IncludeScopes = true;
         });
+
+        // HttpClient's built-in logging writes the full target URL (path and query)
+        // on every request. Only log warnings and above from it; outgoing calls are
+        // still traced as dependencies.
+        logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
     })
     .ConfigureServices((context, services) =>
     {
