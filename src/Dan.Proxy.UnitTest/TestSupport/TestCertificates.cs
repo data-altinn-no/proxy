@@ -4,6 +4,16 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace Dan.Proxy.UnitTest.TestSupport
 {
+    /// <summary>
+    /// The two header values a caller can send for one client certificate: the certificate
+    /// alone, or together with the intermediate certificate that issued it.
+    /// </summary>
+    internal sealed record ClientCertificateWithChain(
+        string PfxWithoutChain,
+        string PfxWithChain,
+        string Thumbprint,
+        string IntermediateThumbprint);
+
     internal static class TestCertificates
     {
         /// <summary>
@@ -31,14 +41,90 @@ namespace Dan.Proxy.UnitTest.TestSupport
                 .ToArray();
         }
 
-        private static X509Certificate2 CreateSelfSignedClientCertificate(string commonName, RSA key)
+        /// <summary>A header value that holds a certificate but no private key, so it cannot be used to log on with.</summary>
+        public static string CreateCertificateWithoutPrivateKey()
+        {
+            using var key = RSA.Create(2048);
+            using var certificate = CreateSelfSignedClientCertificate("client-without-key", key);
+            using var withoutKey = X509CertificateLoader.LoadCertificate(certificate.RawData);
+            return Convert.ToBase64String(withoutKey.Export(X509ContentType.Pfx));
+        }
+
+        /// <summary>
+        /// A client certificate issued the way an enterprise certificate is: by an intermediate
+        /// certificate authority under a root. The certificates point to <paramref name="downloads"/>
+        /// as the place to fetch the intermediate and the root, the way real ones point to the
+        /// issuer's download site.
+        /// </summary>
+        public static ClientCertificateWithChain CreateClientCertificateWithChain(CertificateDownloadServer downloads)
+        {
+            var notBefore = DateTimeOffset.UtcNow.AddMinutes(-5);
+            var notAfter = DateTimeOffset.UtcNow.AddDays(1);
+
+            using var rootKey = RSA.Create(2048);
+            var rootRequest = CreateAuthorityRequest("Test Root", rootKey);
+            using var root = rootRequest.CreateSelfSigned(notBefore, notAfter);
+
+            using var intermediateKey = RSA.Create(2048);
+            var intermediateRequest = CreateAuthorityRequest("Test Intermediate", intermediateKey);
+            AddIssuer(intermediateRequest, root, downloads.UrlOf("root.cer"));
+            using var intermediateWithoutKey = intermediateRequest.Create(root, notBefore, notAfter, RandomNumberGenerator.GetBytes(8));
+            using var intermediate = intermediateWithoutKey.CopyWithPrivateKey(intermediateKey);
+
+            using var clientKey = RSA.Create(2048);
+            var clientRequest = CreateClientRequest("client-with-chain", clientKey);
+            AddIssuer(clientRequest, intermediate, downloads.UrlOf("intermediate.cer"), downloads.UrlOf("status"));
+            using var clientWithoutKey = clientRequest.Create(intermediate, notBefore, notAfter, RandomNumberGenerator.GetBytes(8));
+            using var client = clientWithoutKey.CopyWithPrivateKey(clientKey);
+
+            downloads.Publish("root.cer", root);
+            downloads.Publish("intermediate.cer", intermediate);
+
+            // The intermediate goes in without its private key, as a caller would send it.
+            var withChain = new X509Certificate2Collection { client, intermediateWithoutKey };
+
+            return new ClientCertificateWithChain(
+                PfxWithoutChain: Convert.ToBase64String(client.Export(X509ContentType.Pfx)),
+                PfxWithChain: Convert.ToBase64String(withChain.Export(X509ContentType.Pfx)!),
+                Thumbprint: client.Thumbprint,
+                IntermediateThumbprint: intermediate.Thumbprint);
+        }
+
+        private static X509Certificate2 CreateSelfSignedClientCertificate(string commonName, RSA key) =>
+            CreateClientRequest(commonName, key).CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddDays(1));
+
+        private static CertificateRequest CreateClientRequest(string commonName, RSA key)
         {
             var request = new CertificateRequest($"CN={commonName}", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
             request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, critical: true));
             request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(
                 new OidCollection { new Oid("1.3.6.1.5.5.7.3.2") }, critical: false)); // client authentication
 
-            return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddDays(1));
+            return request;
+        }
+
+        private static CertificateRequest CreateAuthorityRequest(string commonName, RSA key)
+        {
+            var request = new CertificateRequest($"CN={commonName}", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            request.CertificateExtensions.Add(new X509BasicConstraintsExtension(
+                certificateAuthority: true, hasPathLengthConstraint: false, pathLengthConstraint: 0, critical: true));
+            request.CertificateExtensions.Add(new X509KeyUsageExtension(
+                X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign, critical: true));
+            request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, critical: false));
+
+            return request;
+        }
+
+        /// <summary>
+        /// Names the issuer, where its certificate can be fetched, and where the issuer answers
+        /// whether the certificate has been revoked (OCSP).
+        /// </summary>
+        private static void AddIssuer(CertificateRequest request, X509Certificate2 issuer, string issuerUrl, string? statusUrl = null)
+        {
+            request.CertificateExtensions.Add(X509AuthorityKeyIdentifierExtension.CreateFromCertificate(
+                issuer, includeKeyIdentifier: true, includeIssuerAndSerial: false));
+            request.CertificateExtensions.Add(new X509AuthorityInformationAccessExtension(
+                ocspUris: statusUrl is null ? null : [statusUrl], caIssuersUris: [issuerUrl]));
         }
 
         public static X509Certificate2 CreateServerCertificate()

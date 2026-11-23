@@ -104,7 +104,17 @@ namespace Dan.Proxy.Services
                 UseCookies = false,
                 SslOptions = new SslClientAuthenticationOptions
                 {
-                    ClientCertificates = new X509CertificateCollection { certificate }
+                    // The target is sent the certificate from the header as it is. With offline
+                    // set, the certificates of the authorities that issued it are not fetched.
+                    // Without a context, the handler fetches them in every handshake, from the
+                    // address that stands in the certificate.
+                    ClientCertificateContext = SslStreamCertificateContext.Create(certificate, additionalCertificates: null, offline: true),
+
+                    // A TLS session set up with this certificate must not be resumed by another
+                    // connection. On Windows, a later connection without a certificate otherwise
+                    // resumes it, and the target sees this certificate on a request that did not
+                    // carry it. Linux never resumes sessions that have a client certificate.
+                    AllowTlsResume = false
                 }
             };
 
