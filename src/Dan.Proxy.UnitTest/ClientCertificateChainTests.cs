@@ -4,9 +4,10 @@ using Dan.Proxy.UnitTest.TestSupport;
 namespace Dan.Proxy.UnitTest
 {
     /// <summary>
-    /// A target is sent the client certificate from the header as it is. The proxy does not
-    /// fetch the certificates of the authorities that issued it: the address to fetch from
-    /// stands in the certificate, and the download costs two outgoing calls per handshake.
+    /// The proxy does not fetch the certificates of the authorities that issued a client
+    /// certificate: the address to fetch from stands in the certificate, and the download
+    /// costs two outgoing calls per handshake. A target is therefore sent the certificate
+    /// alone, unless the machine already has its issuers in a certificate store.
     ///
     /// Linux only. On Windows the operating system fetches the issuers itself and keeps them
     /// in the user's certificate store.
@@ -51,7 +52,7 @@ namespace Dan.Proxy.UnitTest
 
         [TestMethod]
         [OSCondition(OperatingSystems.Linux)]
-        public async Task CertificateFromTheHeader_IsPresentedToTheTargetWithoutItsIssuers()
+        public async Task CertificateWithIssuersTheMachineDoesNotHave_IsPresentedToTheTargetAlone()
         {
             await using var downloads = new CertificateDownloadServer();
             await using var target = CreateTargetWithoutKeepAlive();
@@ -61,7 +62,7 @@ namespace Dan.Proxy.UnitTest
             await CallAsync(provider.GetClient(certificate.PfxWithoutChain), target);
 
             Assert.AreEqual(certificate.Thumbprint, target.Requests.Single().ClientCertificateThumbprint);
-            Assert.IsFalse(target.WasSentByClient(certificate.IntermediateThumbprint), "The target must get the certificate alone.");
+            Assert.IsFalse(target.WasSentByClient(certificate.IntermediateThumbprint), "The issuers are in no certificate store here, so the target must get the certificate alone.");
         }
     }
 }

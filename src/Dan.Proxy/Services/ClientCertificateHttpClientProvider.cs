@@ -104,10 +104,13 @@ namespace Dan.Proxy.Services
                 UseCookies = false,
                 SslOptions = new SslClientAuthenticationOptions
                 {
-                    // The target is sent the certificate from the header as it is. With offline
-                    // set, the certificates of the authorities that issued it are not fetched.
-                    // Without a context, the handler fetches them in every handshake, from the
-                    // address that stands in the certificate.
+                    // With offline set, the certificates of the authorities that issued the
+                    // certificate are never fetched. Without a context, the handler fetches
+                    // them in every handshake, from the address that stands in the certificate.
+                    //
+                    // This does not promise that the certificate is sent alone: issuer
+                    // certificates that already lie in the certificate stores of the machine
+                    // are still sent along with it.
                     ClientCertificateContext = SslStreamCertificateContext.Create(certificate, additionalCertificates: null, offline: true),
 
                     // A TLS session set up with this certificate must not be resumed by another
